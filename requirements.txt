@@ -1,0 +1,18 @@
+# 界面框架
+PySide6>=6.11.0
+
+# 数据处理（你当前的版本，不会冲突）
+pandas==2.2.3
+# 处理xls格式
+xlrd==2.0.2
+# 处理xlsx格式
+openpyxl==3.1.5
+
+
+# 依赖包（pandas 自动需要）
+numpy>=1.26.0
+python-dateutil>=2.8.2
+pytz>=2020.1
+
+# 打包用
+pinstaller==6.20.0
