@@ -2,82 +2,18 @@ import os
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QTabWidget, QApplication,
     QVBoxLayout, QHBoxLayout, QFormLayout,
-    QLabel, QPushButton, QGroupBox, QComboBox, QLineEdit,
-    QProgressBar, QTableView, QFileDialog, QMessageBox
+    QLabel, QPushButton, QGroupBox,
+    QProgressBar, QFileDialog, QMessageBox
 )
 from PySide6.QtCore import Qt
 
 from app.worker import DataProcessWorker
 from app.data_processor import ExcelProcessor
-from app.table_model import PandasModel
+from app.sheet_tab_widget import SheetTabWidget
+from app.filter_row_widget import FilterRowWidget
 
 import pandas as pd
 
-class SheetTabWidget(QWidget):
-    """单个工作表的标签页组件"""
-
-    def __init__(self, sheet_name: str, dataframe: pd.DataFrame, parent=None):
-        super().__init__(parent)
-        self.sheet_name = sheet_name
-        self.original_df = dataframe.copy()     # 原始数据
-        self.current_df = dataframe.copy()      # 当前显示的数据(筛选后)
-
-        # 添加 headers 属性（从 dataframe 的列名获取）
-        self.headers = dataframe.columns.tolist()  # 添加这一行
-
-        self.setup_ui()
-        self.update_preview()
-
-    def setup_ui(self):
-        """设置标签页的UI"""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        # 信息标签
-        self.info_label = QLabel(f"总行数: {len(self.original_df)} | 当前行数: {len(self.current_df)}")
-        self.info_label.setStyleSheet("padding: 5px; background-color: #f5f5f5; border-radius: 3px;")
-        layout.addWidget(self.info_label)
-
-        # 表格视图
-        self.table_view = QTableView()
-        self.table_view.setAlternatingRowColors(True)
-        self.table_view.setSortingEnabled(True)
-        layout.addWidget(self.table_view)
-
-    def update_preview(self):
-        """刷新表格预览"""
-        model = PandasModel(self.current_df)
-        self.table_view.setModel(model)
-        self.table_view.resizeColumnsToContents()
-
-        # 更新标签信息标签
-        original_rows = len(self.original_df)
-        current_rows = len(self.current_df)
-        self.info_label.setText(f"总行数: {original_rows} | 当前行数: {current_rows}")
-
-        if current_rows < original_rows:
-            self.info_label.setStyleSheet("padding: 5px; background-color: #fff3cd; border-radius: 3px;")
-        else:
-            self.info_label.setStyleSheet("padding: 5px; background-color: #f5f5f5; border-radius: 3px;")
-
-    def apply_filter(self, column: str, operator: str, value):
-        """应用筛选到当前标签页"""
-        try:
-            filtered_df = ExcelProcessor.filter_data(self.original_df, column, operator, value)
-            self.current_df = filtered_df
-            self.update_preview()
-            return True
-        except Exception as e:
-            return False
-    
-    def reset_filter(self):
-        """重置筛选"""
-        self.current_df = self.original_df.copy()
-        self.update_preview()
-    
-    def export_data(self, output_path: str):
-        """导出当前标签页的数据"""
-        self.current_df.to_excel(output_path, sheet_name=self.sheet_name, index=False)
 
 class ExcelFilterWindow(QMainWindow):
     """Excel筛选处理工具主窗口"""
@@ -85,29 +21,57 @@ class ExcelFilterWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Excel数据处理工具")
-        self.setMinimumSize(800, 600)
-
+        self.setMinimumSize(1000, 600)
+        self.center()
+        
         # 数据状态
         self.file_path = None
-        self.sheet_tabs = {}        # 存储每个标签页对象
-        self.current_sheet_name = None # 当前活动的工作表名称
+        self.sheet_tabs = {}                # 存储每个标签页对象
+        self.current_sheet_name = None      # 当前活动的工作表名称
+        self.sheets_data_cache = None       # 缓存原始数据
+        self.sheet_loaded = {}              # 记录已加载的工作表
+        self._loading_tab = False           # 防重入锁
 
-
-        self.sheets_data_cache = None  # 缓存原始数据
-        self.sheet_loaded = {}  # 记录已加载的工作表
-        self._loading_tab = False  # 防重入锁
-
+        self.worker = None
+        
+        # 筛选条件相关
+        self.filter_rows = []               # 存储所有筛选条件行
+        self.row1_filters = []
+        self.row2_filters = []
+        self.row1_layout = None
+        self.row2_layout = None
+        self.add_filter_btn = None
+        self.apply_filter_btn = None
+        self.reset_filter_btn = None
+        self.clear_all_btn = None
+        # self.info_label = None
+        
         self.setup_ui()
         self.connect_signals()
         self.apply_style()
 
-        self.worker = None
+    def center(self):
+        """将窗口居中显示"""
+        # 获取当前屏幕的几何信息
+        screen_geometry = QApplication.primaryScreen().availableGeometry()
+        
+        # 获取窗口自身的大小
+        window_geometry = self.frameGeometry()
+        
+        # 计算居中位置
+        x = (screen_geometry.width() - window_geometry.width()) // 2
+        y = (screen_geometry.height() - window_geometry.height()) // 2
+        
+        # 移动窗口到计算出的位置
+        self.move(x, y)
 
     def setup_ui(self):
         """构建界面布局"""
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
+        main_layout.setContentsMargins(15, 15, 15, 15)  # 设置外边距
+        main_layout.setSpacing(10)
 
         # 上部分:文件选择区域
         file_layout = QHBoxLayout()
@@ -120,45 +84,59 @@ class ExcelFilterWindow(QMainWindow):
         file_layout.addWidget(self.select_btn)
         main_layout.addLayout(file_layout)
 
-        # 中部：条件筛选区
+        # 中部：条件筛选区(固定2行,最多4个条件)
         filter_group = QGroupBox("筛选条件（应用于当前活动工作表）")
         filter_layout = QFormLayout(filter_group)
-        # 第一行：筛选条件设置（列 + 运算符 + 值）
-        row_layout = QHBoxLayout()
-        self.column_combo = QComboBox()
-        self.column_combo.setMinimumWidth(150)
-        self.column_combo.setEnabled(False)
-        self.operator_combo = QComboBox()
-        self.operator_combo.addItems(["==", "!=", ">", ">=", "<", "<=", "contains"])
-        self.operator_combo.setMinimumWidth(80)
-        self.operator_combo.setEnabled(False)
-        self.value_input = QLineEdit()
-        self.value_input.setPlaceholderText("筛选值（多个值用逗号分隔）")
-        self.value_input.setMinimumWidth(200)
-        self.value_input.setEnabled(False)
+        filter_layout.setContentsMargins(10, 15, 10, 10)  # 内边距
+        filter_layout.setSpacing(8)
 
-        row_layout.addWidget(self.column_combo)
-        row_layout.addWidget(self.operator_combo)
-        row_layout.addWidget(self.value_input)
-        filter_layout.addRow("条件：", row_layout)
+        # 创建2行容器
+        self.row1_widget = QWidget()
+        self.row1_layout = QHBoxLayout(self.row1_widget)
+        self.row1_layout.setContentsMargins(0, 0, 0, 0)
+        self.row1_layout.setSpacing(15)
+        self.row1_layout.setAlignment(Qt.AlignLeft)
+
+        self.row2_widget = QWidget()
+        self.row2_layout = QHBoxLayout(self.row2_widget)
+        self.row2_layout.setContentsMargins(0, 0, 0, 0)
+        self.row2_layout.setSpacing(15)
+        self.row2_layout.setAlignment(Qt.AlignLeft)
+
+        filter_layout.addRow(self.row1_widget)
+        filter_layout.addRow(self.row2_widget)
 
         # 按钮行
         btn_layout = QHBoxLayout()
+        self.add_filter_btn = QPushButton("➕ 添加筛选条件")
+        self.add_filter_btn.setEnabled(False)
         self.apply_filter_btn = QPushButton("🔍 应用筛选")
         self.apply_filter_btn.setEnabled(False)
         self.reset_filter_btn = QPushButton("🔄 重置筛选")
         self.reset_filter_btn.setEnabled(False)
+        self.clear_all_btn = QPushButton("🗑️ 清空所有条件")
+        self.clear_all_btn.setEnabled(False)
         self.export_current_btn = QPushButton("💾 导出结果")
         self.export_current_btn.setEnabled(False)
         self.export_all_btn = QPushButton("📦 导出所有工作表")
         self.export_all_btn.setEnabled(False)
+        btn_layout.setContentsMargins(0, 10, 0, 5)
+        btn_layout.setSpacing(10)
 
+        btn_layout.addWidget(self.add_filter_btn)
         btn_layout.addWidget(self.apply_filter_btn)
         btn_layout.addWidget(self.reset_filter_btn)
+        btn_layout.addWidget(self.clear_all_btn)
         btn_layout.addStretch()
         btn_layout.addWidget(self.export_current_btn)
         btn_layout.addWidget(self.export_all_btn)
-        filter_layout.addRow("操作：", btn_layout)
+        filter_layout.addRow(btn_layout)
+
+        # 信息标签
+        # self.info_label = QLabel("原始数据行数：0 | 筛选后行数：0")
+        # self.info_label.setAlignment(Qt.AlignLeft)
+        # self.info_label.setStyleSheet("padding: 5px; color: #666;")
+        # filter_layout.addWidget(self.info_label)
 
         main_layout.addWidget(filter_group)
 
@@ -180,14 +158,142 @@ class ExcelFilterWindow(QMainWindow):
         self.progress_bar.setVisible(False)
         main_layout.addWidget(self.progress_bar)
 
+        # 初始化筛选条件列表 
+        self.init_filter_rows()
+
+    def init_filter_rows(self):
+        """初始化筛选条件(默认1个)"""
+        # 获取列名(如果已加载数据)
+        columns = []
+        if hasattr(self, 'current_sheet_name') and self.current_sheet_name:
+            tab = self.sheet_tabs.get(self.current_sheet_name)
+            if tab and hasattr(tab, "headers"):
+                columns = tab.headers
+
+        # 创建第一个条件(无删除按钮) 
+        row1_filter = FilterRowWidget(columns, show_delete=False)
+        row1_filter.set_index(1)
+        self.filter_rows.append(row1_filter)
+        self.row1_layout.addWidget(row1_filter)
+
+        # 第一行占位(最多2个)
+        self.row1_filters = [row1_filter]
+        self.row2_filters = []
+
     def connect_signals(self):
         """连接信号槽"""
         self.select_btn.clicked.connect(self.on_select_file)
-        self.apply_filter_btn.clicked.connect(self.on_apply_filter)
-        self.reset_filter_btn.clicked.connect(self.on_reset_filter)
+        self.add_filter_btn.clicked.connect(self.add_filter_row)
+        self.apply_filter_btn.clicked.connect(self.on_apply_filters)
+        self.reset_filter_btn.clicked.connect(self.on_reset_filters)
         self.export_current_btn.clicked.connect(self.on_export_current)
         self.export_all_btn.clicked.connect(self.on_export_all)
 
+    def add_filter_row(self):
+        """添加新的筛选条件(最多4个,分行显示)"""
+        if len(self.filter_rows) >= 4:
+            QMessageBox.warning(self, "提示", "最多支持4个筛选条件")
+            return 
+        # 获取列表名
+        columns = self.get_current_columns()
+
+        # 创建新条件
+        new_filter = FilterRowWidget(columns, show_delete=True)
+        new_filter.deleted.connect(self.remove_filter_row)
+
+        # 决定放到哪一行
+        if len(self.row1_filters) < 2:
+            # 第一行还有位置
+            self.row1_layout.addWidget(new_filter)
+            self.row1_filters.append(new_filter)
+        else:
+            # 放到第二行
+            self.row2_layout.addWidget(new_filter)
+            self.row2_filters.append(new_filter)
+        
+        self.filter_rows.append(new_filter)
+        self.update_filter_indices()
+        self.status_label.setText(f"已添加筛选条件，当前共 {len(self.filter_rows)} 个")
+
+    def remove_filter_row(self, filter_row):
+        """删除筛选条件"""
+        if len(self.filter_rows) <= 1:
+            QMessageBox.warning(self, "提示", "至少保留一个筛选条件")
+            return 
+        
+        # 从布局中移除
+        if filter_row in self.row1_filters:
+            self.row1_layout.removeWidget(filter_row)
+            self.row1_filters.remove(filter_row)
+        elif filter_row in self.row2_filters:
+            self.row2_layout.removeWidget(filter_row)
+            self.row2_filters.remove(filter_row)
+        
+        # 从列表中移除
+        self.filter_rows.remove(filter_row)
+        filter_row.deleteLater()
+        
+        # 重新整理布局（将第二行的条件移到第一行如果第一行有空位）
+        self.rearrange_filters()
+        self.update_filter_indices()
+        self.status_label.setText(f"已删除筛选条件，当前共 {len(self.filter_rows)} 个")
+
+    def rearrange_filters(self):
+        """重新整理筛选条件布局（保持第一行优先填满）"""
+        all_filters = self.row1_filters + self.row2_filters
+        
+        # 清空两行
+        for f in self.row1_filters:
+            self.row1_layout.removeWidget(f)
+        for f in self.row2_filters:
+            self.row2_layout.removeWidget(f)
+        
+        self.row1_filters.clear()
+        self.row2_filters.clear()
+        
+        # 重新分配：第一行最多2个
+        for i, f in enumerate(all_filters):
+            if i < 2:
+                self.row1_layout.addWidget(f)
+                self.row1_filters.append(f)
+            else:
+                self.row2_layout.addWidget(f)
+                self.row2_filters.append(f)
+
+    def update_filter_indices(self):
+        """更新所有筛选条件的序号"""
+        all_filters = self.row1_filters + self.row2_filters
+        for i, f in enumerate(all_filters):
+            f.set_index(i + 1)
+
+    def get_all_filters(self):
+        """获取所有有效的筛选条件"""
+        filters = []
+        for row in self.filter_rows:
+            if row.is_valid():
+                filters.append(row.get_filter())
+        return filters
+
+    def get_current_columns(self) -> list:
+        """获取当前工作表的列名"""
+        # 从当前标签页获取
+        if hasattr(self, 'current_sheet_name') and self.current_sheet_name:
+            tab = self.sheet_tabs.get(self.current_sheet_name)
+            if tab and hasattr(tab, 'headers'):
+                return tab.headers
+        
+        # 从 current_sheet_df 获取
+        if hasattr(self, 'current_sheet_df') and self.current_sheet_df is not None:
+            return self.current_sheet_df.columns.tolist()
+        
+        return []
+
+    def update_all_filter_columns(self):
+        """更新所有筛选条件的列下拉框"""
+        columns = self.get_current_columns()
+        for row in self.filter_rows:
+            row.set_columns(columns)
+            
     def on_select_file(self):
         """选择Excel文件"""
         file_path, _ = QFileDialog.getOpenFileName(self, "请选择文件", "", "Excel文件(*.xlsx *.xls);;所有文件(*)")
@@ -221,8 +327,8 @@ class ExcelFilterWindow(QMainWindow):
         self.setEnabled(True)
         self.progress_bar.setVisible(False)
         
-        import time
-        start = time.perf_counter()
+        # import time
+        # start = time.perf_counter()
         
         if not sheets_data:
             QMessageBox.critical(self, "错误", "没有加载到任何工作表数据")
@@ -279,16 +385,18 @@ class ExcelFilterWindow(QMainWindow):
         
         # 手动更新当前工作表的UI
         self.current_sheet_name = first_sheet
-        columns = first_df.columns.tolist()
-        self.column_combo.blockSignals(True)
-        self.column_combo.clear()
-        self.column_combo.addItems(columns)
-        self.column_combo.blockSignals(False)
+        # columns = first_df.columns.tolist()
+        self.update_all_filter_columns()
+        # self.column_combo.blockSignals(True)
+        # self.column_combo.clear()
+        # self.column_combo.addItems(columns)
+        # self.column_combo.blockSignals(False)
         
         # 启用控件
-        self.column_combo.setEnabled(True)
-        self.operator_combo.setEnabled(True)
-        self.value_input.setEnabled(True)
+        # self.column_combo.setEnabled(True)
+        # self.operator_combo.setEnabled(True)
+        # self.value_input.setEnabled(True)
+        self.add_filter_btn.setEnabled(True)
         self.apply_filter_btn.setEnabled(True)
         self.reset_filter_btn.setEnabled(True)
         self.export_current_btn.setEnabled(True)
@@ -297,7 +405,7 @@ class ExcelFilterWindow(QMainWindow):
         # 更新状态栏
         self.status_label.setText(f"已加载 {len(sheets_data)} 个工作表（当前: {first_sheet}）")
         
-        end = time.perf_counter()
+        # end = time.perf_counter()
         # print(f"界面加载耗时: {end - start:.6f} 秒")
         
         QMessageBox.information(self, 
@@ -309,7 +417,7 @@ class ExcelFilterWindow(QMainWindow):
 
     def on_tab_changed(self, index):
         """标签页切换时的处理 - 支持懒加载（带防重入锁）"""
-        column_combo_value = self.column_combo.currentText()  # 切换前保存上一次的选值
+        # column_combo_value = self.column_combo.currentText()  # 切换前保存上一次的选值
 
         # 防重入锁：避免在处理过程中被再次调用
         if hasattr(self, '_loading_tab') and self._loading_tab:
@@ -365,13 +473,13 @@ class ExcelFilterWindow(QMainWindow):
                     
                     # 更新当前工作表的列选择框
                     self.current_sheet_name = sheet_name
-                    columns = df.columns.tolist()
-                    self.column_combo.blockSignals(True)
-                    self.column_combo.clear()
-                    self.column_combo.addItems(columns)                 
-                    if column_combo_value in columns:                       # 如果新的tab也有该值，则直接保留上次的选值
-                        self.column_combo.setCurrentText(column_combo_value)
-                    self.column_combo.blockSignals(False)
+                    # columns = df.columns.tolist()
+                    # self.column_combo.blockSignals(True)
+                    # self.column_combo.clear()
+                    # self.column_combo.addItems(columns)                 
+                    # if column_combo_value in columns:                       # 如果新的tab也有该值，则直接保留上次的选值
+                    #     self.column_combo.setCurrentText(column_combo_value)
+                    # self.column_combo.blockSignals(False)
                 else:
                     self.status_label.setText(f"加载工作表 '{sheet_name}' 失败")
                     return
@@ -386,17 +494,18 @@ class ExcelFilterWindow(QMainWindow):
             self.current_sheet_name = current_widget.sheet_name
             
             # 更新列选择下拉框
-            current_df = current_widget.original_df
-            if current_df is not None:
-                self.column_combo.blockSignals(True)
-                columns = current_df.columns.tolist()
-                self.column_combo.clear()
-                self.column_combo.addItems(columns)                 
-                if column_combo_value in columns:                       # 如果新的tab也有该值，则直接保留上次的选值
-                    self.column_combo.setCurrentText(column_combo_value)
-                self.column_combo.blockSignals(False)
+            # current_df = current_widget.original_df
+            # if current_df is not None:
+            #     self.column_combo.blockSignals(True)
+            #     columns = current_df.columns.tolist()
+            #     self.column_combo.clear()
+            #     self.column_combo.addItems(columns)                 
+            #     if column_combo_value in columns:                       # 如果新的tab也有该值，则直接保留上次的选值
+            #         self.column_combo.setCurrentText(column_combo_value)
+            #     self.column_combo.blockSignals(False)
             
             self.status_label.setText(f"当前工作表: {self.current_sheet_name}")
+            self.update_all_filter_columns()
 
     def get_current_tab(self):
         """获取当前活动的标签页（只返回已加载的）"""
@@ -420,48 +529,126 @@ class ExcelFilterWindow(QMainWindow):
             )
             return None
 
-    def on_apply_filter(self):
-        """应用筛选到当前工作表"""
+    # def on_apply_filter(self):
+    #     """应用筛选到当前工作表"""
+    #     current_tab = self.get_current_tab()
+        
+    #     if not current_tab:
+    #         return  # get_current_tab 已经显示了提示
+        
+    #     column = self.column_combo.currentText()
+    #     operator = self.operator_combo.currentText()
+    #     value = self.value_input.text().strip()
+        
+    #     if not column:
+    #         QMessageBox.warning(self, "提示", "请选择筛选列")
+    #         return
+    #     if not value:
+    #         QMessageBox.warning(self, "提示", "请输入筛选值")
+    #         return
+        
+    #     # 解析筛选值
+    #     processed_value = self._parse_filter_value(value)
+        
+    #     self.status_label.setText(f"正在筛选工作表 '{current_tab.sheet_name}'...")
+    #     QApplication.processEvents()
+        
+    #     success = current_tab.apply_filter(column, operator, processed_value)
+        
+    #     if success:
+    #         self.status_label.setText(f"筛选完成，当前显示 {len(current_tab.current_df)} 行")
+    #     else:
+    #         self.status_label.setText("筛选失败")
+    #         QMessageBox.warning(self, "错误", "筛选条件无效")
+
+    # def on_reset_filter(self):
+    #     """重置当前工作表的筛选"""
+    #     current_tab = self.get_current_tab()
+        
+    #     if not current_tab:
+    #         return
+        
+    #     current_tab.reset_filter()
+    #     self.value_input.clear()
+    #     self.status_label.setText(f"已重置工作表 '{current_tab.sheet_name}' 的筛选")
+
+    def on_apply_filters(self):
+        """应用所有筛选条件"""
+        if not self.get_current_tab():
+            QMessageBox.warning(self, "提示", "请先加载Excel文件")
+            return
+        
+        filters = self.get_all_filters()
+        
+        if not filters:
+            QMessageBox.warning(self, "提示", "请至少设置一个有效的筛选条件")
+            return
+        
         current_tab = self.get_current_tab()
-        
         if not current_tab:
-            return  # get_current_tab 已经显示了提示
-        
-        column = self.column_combo.currentText()
-        operator = self.operator_combo.currentText()
-        value = self.value_input.text().strip()
-        
-        if not column:
-            QMessageBox.warning(self, "提示", "请选择筛选列")
-            return
-        if not value:
-            QMessageBox.warning(self, "提示", "请输入筛选值")
             return
         
-        # 解析筛选值
-        processed_value = self._parse_filter_value(value)
-        
-        self.status_label.setText(f"正在筛选工作表 '{current_tab.sheet_name}'...")
+        self.status_label.setText("正在应用筛选条件...")
         QApplication.processEvents()
         
-        success = current_tab.apply_filter(column, operator, processed_value)
-        
-        if success:
-            self.status_label.setText(f"筛选完成，当前显示 {len(current_tab.current_df)} 行")
-        else:
-            self.status_label.setText("筛选失败")
-            QMessageBox.warning(self, "错误", "筛选条件无效")
+        try:
+            # 逐个应用筛选（AND逻辑）
+            filtered_df = current_tab.original_df.copy()
+            for f in filters:
+                filtered_df = ExcelProcessor.filter_data(
+                    filtered_df, 
+                    f["column"], 
+                    f["operator"], 
+                    self._parse_filter_value(f["value"])
+                )
+            
+            current_tab.current_df = filtered_df
+            current_tab.update_preview()
+            
+            # original_rows = len(current_tab.original_df)
+            # filtered_rows = len(filtered_df)
+            # self.info_label.setText(f"原始数据行数：{original_rows} | 筛选后行数：{filtered_rows}")
+            self.status_label.setText(f"筛选完成，共应用 {len(filters)} 个条件")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"筛选失败: {str(e)}")
 
-    def on_reset_filter(self):
-        """重置当前工作表的筛选"""
+    def on_reset_filters(self):
+        """重置所有筛选"""
         current_tab = self.get_current_tab()
-        
         if not current_tab:
             return
         
+        # 清空所有输入框
+        for row in self.filter_rows:
+            row.clear()
+        
+        # 重置数据
         current_tab.reset_filter()
-        self.value_input.clear()
-        self.status_label.setText(f"已重置工作表 '{current_tab.sheet_name}' 的筛选")
+        
+        # original_rows = len(current_tab.original_df)
+        # self.info_label.setText(f"原始数据行数：{original_rows} | 筛选后行数：{original_rows}")
+        self.status_label.setText("已重置所有筛选条件")
+
+    def on_clear_all_filters(self):
+        """清空所有筛选条件（保留第一个）"""
+        reply = QMessageBox.question(
+            self,
+            "确认清空",
+            "确定要清空所有筛选条件吗？",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply != QMessageBox.Yes:
+            return
+        
+        # 清空所有输入框
+        for row in self.filter_rows:
+            row.clear()
+        
+        self.status_label.setText("已清空所有筛选条件")
+
 
     def on_export_current(self):
         """导出当前工作表"""
