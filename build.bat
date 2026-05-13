@@ -1,20 +1,20 @@
 @echo off
 echo ========================================
-echo   Excel ç­›é€‰å·¥å…·æ‰“åŒ…è„šæœ¬
+echo   Excel É¸Ñ¡¹¤¾ß´ò°ü½Å±¾
 echo ========================================
 echo.
 
-echo 1. æ¿€æ´»è™šæ‹Ÿç¯å¢ƒ...
+echo 1. ¼¤»îĞéÄâ»·¾³...
 call .venv\Scripts\activate
 
 echo.
-echo 2. æ¸…ç†æ—§æ‰“åŒ…æ–‡ä»¶...
+echo 2. ÇåÀí¾É´ò°üÎÄ¼ş...
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
 if exist *.spec del *.spec
 
 echo.
-echo 3. å¼€å§‹æ‰“åŒ…...
+echo 3. ¿ªÊ¼´ò°ü...
 pyinstaller -D -w --name="ExcelTool" ^
     --hidden-import=openpyxl ^
     --hidden-import=pandas ^
@@ -25,7 +25,7 @@ pyinstaller -D -w --name="ExcelTool" ^
     run.py
 
 echo.
-echo 4. æ‰“åŒ…å®Œæˆï¼
-echo è¾“å‡ºæ–‡ä»¶ä½ç½®: dist\ExcelFilterTool.exe
+echo 4. ´ò°üÍê³É£¡
+echo Êä³öÎÄ¼şÎ»ÖÃ: dist\ExcelFilterTool.exe
 echo.
 pause

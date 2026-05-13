@@ -186,6 +186,7 @@ class ExcelFilterWindow(QMainWindow):
         self.add_filter_btn.clicked.connect(self.add_filter_row)
         self.apply_filter_btn.clicked.connect(self.on_apply_filters)
         self.reset_filter_btn.clicked.connect(self.on_reset_filters)
+        self.clear_all_btn.clicked.connect(self.on_clear_all_filters)
         self.export_current_btn.clicked.connect(self.on_export_current)
         self.export_all_btn.clicked.connect(self.on_export_all)
 
@@ -293,7 +294,26 @@ class ExcelFilterWindow(QMainWindow):
         columns = self.get_current_columns()
         for row in self.filter_rows:
             row.set_columns(columns)
-            
+
+    def on_clear_all_filters(self):
+        """清空所有筛选条件（保留第一个）"""
+        reply = QMessageBox.question(
+            self,
+            "确认清空",
+            "确定要清空所有筛选条件吗？",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply != QMessageBox.Yes:
+            return
+        
+        # 清空所有输入框
+        for row in self.filter_rows:
+            row.clear()
+        
+        self.status_label.setText("已清空所有筛选条件")
+
     def on_select_file(self):
         """选择Excel文件"""
         file_path, _ = QFileDialog.getOpenFileName(self, "请选择文件", "", "Excel文件(*.xlsx *.xls);;所有文件(*)")
@@ -399,6 +419,7 @@ class ExcelFilterWindow(QMainWindow):
         self.add_filter_btn.setEnabled(True)
         self.apply_filter_btn.setEnabled(True)
         self.reset_filter_btn.setEnabled(True)
+        self.clear_all_btn.setEnabled(True)
         self.export_current_btn.setEnabled(True)
         self.export_all_btn.setEnabled(True)
         
