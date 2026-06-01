@@ -72,7 +72,7 @@ class FilterHandler(QObject):
         if reply != QMessageBox.Yes:
             return
         
-        for row in self.parent.filters:
-            row.clear()
+        for filter in self.parent.filters:
+            filter.clear()
         
         self.parent.status_label.setText("已清空所有筛选条件")

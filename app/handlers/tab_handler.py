@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox, QApplication
 from PySide6.QtCore import QObject, Qt
 from app.sheet_tab_widget import SheetTabWidget
 
@@ -50,11 +50,12 @@ class TabHandler(QObject):
         """创建占位标签页"""
         placeholder = QWidget()
         layout = QVBoxLayout(placeholder)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setAlignment(Qt.AlignCenter)
         
         loading_label = QLabel(f"📊 工作表 '{sheet_name}'\n\n点击此标签页加载数据...")
+        loading_label.setObjectName("loading_label")
         loading_label.setAlignment(Qt.AlignCenter)
-        loading_label.setStyleSheet("font-size: 14px; color: #666; padding: 20px;")
         layout.addWidget(loading_label)
         
         return placeholder
@@ -68,6 +69,11 @@ class TabHandler(QObject):
         
         # 检查是否需要加载
         if not self.parent.sheet_loaded.get(sheet_name, False):
+            # 立即显示加载状态
+            self.parent.status_label.setText(f"正在加载工作表 '{sheet_name}'...")
+            QApplication.processEvents()
+
+            # 加载数据
             self._load_tab_data(sheet_name, index)
         
         # 更新当前工作表信息
@@ -75,8 +81,10 @@ class TabHandler(QObject):
         if isinstance(current_widget, SheetTabWidget):
             self.parent.current_sheet_name = current_widget.sheet_name
             self.parent.status_label.setText(f"当前工作表: {self.parent.current_sheet_name}")
-            self.parent.update_all_filter_columns()
-    
+            # 更新筛选条件的列名
+            if hasattr(self.parent, 'update_all_filter_columns'):
+                self.parent.update_all_filter_columns()
+
     def _load_tab_data(self, sheet_name, index):
         """加载标签页数据"""
         self.parent._loading_tab = True
@@ -96,7 +104,11 @@ class TabHandler(QObject):
                 self.parent.tab_widget.blockSignals(False)
                 self.parent.tab_widget.setCurrentIndex(index)
                 self.parent.status_label.setText(f"已加载工作表 '{sheet_name}'")
-                
+            else:
+                self.parent.status_label.setText(f"加载工作表 '{sheet_name}' 失败")
+        except Exception as e:
+            self.parent.status_label.setText(f"加载失败: {str(e)}")
+            QMessageBox.critical(self.parent, "错误", f"加载工作表失败: {str(e)}")      
         finally:
             self.parent._loading_tab = False
     
@@ -107,6 +119,7 @@ class TabHandler(QObject):
             return None
         
         widget = self.parent.tab_widget.widget(idx)
+        # 检查是否是真正的标签页
         if isinstance(widget, SheetTabWidget):
             return widget
         
@@ -126,3 +139,4 @@ class TabHandler(QObject):
             if tab and hasattr(tab, 'headers'):
                 return tab.headers
         return []
+ 

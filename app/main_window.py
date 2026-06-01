@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QProgressBar, QMessageBox
 )
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 
 from app.worker import DataProcessWorker
 from app.handlers import FileHandler, TabHandler, FilterHandler, ExportHandler
@@ -17,7 +18,16 @@ class ExcelFilterWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        # # 获取当前文件所在目录
+        # current_dir = os.path.dirname(os.path.abspath(__file__))
+        # # 获取项目根目录
+        # project_root = os.path.dirname(current_dir)
+        # # 拼接 QSS 路径：/asset/style.qss
+        # self.qss_path = os.path.join(project_root, "assets", "style.qss")
+        # self.icon_path = os.path.join(project_root, "assets\icons", "ExcelTool.ico")
+
         self.setWindowTitle("Excel数据处理工具")
+        self.setWindowIcon(QIcon(self.resource_path("assets/icons/ExcelTool.png")))
         self.resize(800, 600)
         self.center()
         
@@ -26,7 +36,7 @@ class ExcelFilterWindow(QMainWindow):
         self.sheet_tabs = {}
         self.current_sheet_name = None
         self.sheets_data_cache = None
-        self.sheet_loaded = {}
+        self.sheet_loaded = {}      # 存储每个sheet是否已加载
         self._loading_tab = False
         self.worker = None
         
@@ -40,12 +50,15 @@ class ExcelFilterWindow(QMainWindow):
         self.filter_handler = FilterHandler(self)
         self.export_handler = ExportHandler(self)
         
-        # 连接文件处理信号
-        self.file_handler.file_selected.connect(self.on_file_selected)
-        
         self.setup_ui()
         self.connect_signals()
         self.apply_style()
+
+    def resource_path(self, relative_path):
+        """打包后自动定位资源路径"""
+        if hasattr(sys, '_MEIPASS'):
+            return os.path.join(sys._MEIPASS, relative_path)
+        return os.path.join(os.path.abspath("."), relative_path)
 
     def center(self):
         """将窗口居中显示"""
@@ -138,7 +151,7 @@ class ExcelFilterWindow(QMainWindow):
         self.filters.append(first_filter)
 
     def connect_signals(self):
-        """连接信号槽"""
+        """按钮连接信号槽"""
         self.select_btn.clicked.connect(self.file_handler.select_file)
         self.add_filter_btn.clicked.connect(self.add_filter_row)
         self.apply_filter_btn.clicked.connect(self.filter_handler.apply_filters)
@@ -146,6 +159,9 @@ class ExcelFilterWindow(QMainWindow):
         self.clear_all_btn.clicked.connect(self.filter_handler.clear_all_filters)
         self.export_current_btn.clicked.connect(self.export_handler.export_current)
         self.export_all_btn.clicked.connect(self.export_handler.export_all)
+
+        # 连接文件处理信号
+        self.file_handler.file_selected.connect(self.on_file_selected)
 
     def on_file_selected(self, file_path):
         """文件选择完成回调"""
@@ -217,7 +233,6 @@ class ExcelFilterWindow(QMainWindow):
             self.filter_layout.addWidget(new_filter, 1, 1)
 
         self.filters.append(new_filter)
-        # self.update_filter_indices()
         self.status_label.setText(f"已添加筛选条件，当前共 {len(self.filters)} 个")
 
     def remove_filter_row(self, filter):
@@ -245,8 +260,8 @@ class ExcelFilterWindow(QMainWindow):
     def update_all_filter_columns(self):
         """更新所有筛选条件的列下拉框"""
         columns = self.tab_handler.get_current_columns()
-        for filters in self.filters:
-            filters.set_columns(columns)
+        for filter in self.filters:
+            filter.set_columns(columns)
     
     def on_progress(self, message: str):
         """进度更新"""
@@ -279,15 +294,8 @@ class ExcelFilterWindow(QMainWindow):
 
     def apply_style(self):
         """从QSS文件加载样式"""
-        # 获取当前文件所在目录
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        # 获取项目根目录
-        project_root = os.path.dirname(current_dir)
-        # 拼接 QSS 路径：/asset/style.qss
-        qss_path = os.path.join(project_root, "assets", "style.qss")
-
         try:
-            with open(qss_path, "r", encoding="utf-8") as f:
+            with open(self.resource_path("assets/style.qss"), "r", encoding="utf-8") as f:
                 qss = f.read()
             self.setStyleSheet(qss)
         except Exception as e:
@@ -306,3 +314,4 @@ class ExcelFilterWindow(QMainWindow):
         self._loading_tab = False
         self.cleanup_worker()
         event.accept()
+

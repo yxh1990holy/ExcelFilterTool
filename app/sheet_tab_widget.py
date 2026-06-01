@@ -26,7 +26,7 @@ class SheetTabWidget(QWidget):
 
         # 信息标签
         self.info_label = QLabel(f"总行数: {len(self.original_df)} | 当前行数: {len(self.current_df)}")
-        self.info_label.setStyleSheet("padding: 5px; background-color: #f5f5f5; border-radius: 3px;")
+        self.info_label.setObjectName("info_label")
         layout.addWidget(self.info_label)
 
         # 表格视图

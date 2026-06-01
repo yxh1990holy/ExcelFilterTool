@@ -50,21 +50,8 @@ class FilterWidget(QWidget):
         
         # 删除按钮
         self.delete_btn = QPushButton(icon=self.style().standardIcon(QStyle.SP_MessageBoxCritical))
+        self.delete_btn.setObjectName("delete_filter_btn")
         self.delete_btn.setFixedSize(28, 28)
-        self.delete_btn.setVisible(self.show_delete)
-        self.delete_btn.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                border: none;
-                border-radius: 6px;
-            }
-            QPushButton:hover {
-                background-color: #c82333;
-            }
-            QPushButton:pressed {
-                background-color: #a71d2a;
-            }
-        """)
         self.delete_btn.setVisible(self.show_delete)
         self.delete_btn.clicked.connect(lambda: self.deleted.emit(self))
         layout.addWidget(self.delete_btn)
