@@ -5,7 +5,7 @@ from app.data_processor import ExcelProcessor
 
 class FilterHandler(QObject):
     """筛选处理类"""
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
@@ -13,9 +13,9 @@ class FilterHandler(QObject):
     def get_all_filters(self):
         """获取所有有效筛选条件"""
         filters = []
-        for row in self.parent.filter_rows:
-            if row.is_valid():
-                filters.append(row.get_filter())
+        for filter in self.parent.filters:
+            if filter.is_valid():
+                filters.append(filter.get_filter())
         return filters
     
     def apply_filters(self):
@@ -56,7 +56,7 @@ class FilterHandler(QObject):
         if not current_tab:
             return
         
-        for row in self.parent.filter_rows:
+        for row in self.parent.filters:
             row.clear()
         
         current_tab.reset_filter()
@@ -72,7 +72,7 @@ class FilterHandler(QObject):
         if reply != QMessageBox.Yes:
             return
         
-        for row in self.parent.filter_rows:
+        for row in self.parent.filters:
             row.clear()
         
         self.parent.status_label.setText("已清空所有筛选条件")

@@ -1,0 +1,70 @@
+/* 标签 */
+QLabel {
+    font-size: 13px;
+    color: #333;
+}
+/* 按钮通用 */
+QPushButton {
+    background-color: #409eff;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+QPushButton:hover {
+    background-color: #66b1ff;
+}
+QPushButton:pressed {
+    background-color: #337ecc;
+}
+QPushButton:disabled {
+    background-color: #c0c4cc;
+}
+
+QGroupBox {
+    font-weight: bold;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    margin-top: 10px;
+    padding-top: 10px;
+}
+QGroupBox::title {
+    color: #333;
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 5px;
+}
+
+
+QTableView {
+    alternate-background-color: #f5f5f5;
+    selection-background-color: #0078d4;
+}
+QTabWidget::pane {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+/* 标签页 */
+QTabWidget::pane {
+    border: 1px solid #dcdfe6;
+    background: white;
+}
+QTabBar::tab {
+    padding: 6px 12px;
+    background: #f2f3f5;
+}
+QTabBar::tab:selected {
+    background: #409eff;
+    color: white;
+}
+
+/* 进度条 */
+QProgressBar {
+    border: 1px solid #dcdfe6;
+    height: 10px;
+}
+QProgressBar::chunk {
+    background-color: #409eff;
+}

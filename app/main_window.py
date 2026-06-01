@@ -1,6 +1,7 @@
+import os, sys
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QTabWidget, QApplication,
-    QVBoxLayout, QHBoxLayout, QFormLayout,
+    QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QPushButton, QGroupBox,
     QProgressBar, QMessageBox
 )
@@ -8,6 +9,7 @@ from PySide6.QtCore import Qt
 
 from app.worker import DataProcessWorker
 from app.handlers import FileHandler, TabHandler, FilterHandler, ExportHandler
+from app.filter_widget import FilterWidget
 
 
 class ExcelFilterWindow(QMainWindow):
@@ -16,7 +18,7 @@ class ExcelFilterWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Excel数据处理工具")
-        self.setMinimumSize(1000, 700)
+        self.resize(800, 600)
         self.center()
         
         # 数据状态
@@ -29,11 +31,8 @@ class ExcelFilterWindow(QMainWindow):
         self.worker = None
         
         # 筛选条件相关
-        self.filter_rows = []
-        self.row1_filters = []
-        self.row2_filters = []
-        self.row1_layout = None
-        self.row2_layout = None
+        self.filters = []
+        self.filter_layout = None
         
         # 初始化处理器
         self.file_handler = FileHandler(self)
@@ -77,26 +76,10 @@ class ExcelFilterWindow(QMainWindow):
 
         # 筛选条件区域
         filter_group = QGroupBox("筛选条件（所有条件同时生效，AND 逻辑）")
-        filter_layout = QFormLayout(filter_group)
-        filter_layout.setContentsMargins(10, 15, 10, 10)
-        filter_layout.setSpacing(8)
-
-        # 创建2行容器
-        self.row1_widget = QWidget()
-        self.row1_layout = QHBoxLayout(self.row1_widget)
-        self.row1_layout.setContentsMargins(0, 0, 0, 0)
-        self.row1_layout.setSpacing(15)
-        self.row1_layout.setAlignment(Qt.AlignLeft)
-
-        self.row2_widget = QWidget()
-        self.row2_layout = QHBoxLayout(self.row2_widget)
-        self.row2_layout.setContentsMargins(0, 0, 0, 0)
-        self.row2_layout.setSpacing(15)
-        self.row2_layout.setAlignment(Qt.AlignLeft)
-
-        filter_layout.addRow(self.row1_widget)
-        filter_layout.addRow(self.row2_widget)
-
+        self.filter_layout = QGridLayout(filter_group)
+        # self.filter_layout.setContentsMargins(10, 15, 10, 10)
+        self.filter_layout.setSpacing(8)
+        
         # 按钮行
         btn_layout = QHBoxLayout()
         self.add_filter_btn = QPushButton("➕ 添加筛选条件")
@@ -121,7 +104,7 @@ class ExcelFilterWindow(QMainWindow):
         btn_layout.addStretch()
         btn_layout.addWidget(self.export_current_btn)
         btn_layout.addWidget(self.export_all_btn)
-        filter_layout.addRow(btn_layout)
+        self.filter_layout.addLayout(btn_layout, 2, 0, 1, 2)
 
         main_layout.addWidget(filter_group)
 
@@ -144,18 +127,15 @@ class ExcelFilterWindow(QMainWindow):
         main_layout.addWidget(self.progress_bar)
 
         # 初始化筛选条件
-        self.init_filter_rows()
+        self.init_filters()
 
-    def init_filter_rows(self):
+    def init_filters(self):
         """初始化筛选条件(默认1个)"""
         columns = self.tab_handler.get_current_columns()
-        from app.filter_row_widget import FilterRowWidget
-        row1_filter = FilterRowWidget(columns, show_delete=False)
-        row1_filter.set_index(1)
-        self.filter_rows.append(row1_filter)
-        self.row1_layout.addWidget(row1_filter)
-        self.row1_filters = [row1_filter]
-        self.row2_filters = []
+        first_filter =  FilterWidget(columns, show_delete=False)
+        first_filter.set_index(1)
+        self.filter_layout.addWidget(first_filter, 0, 0)
+        self.filters.append(first_filter)
 
     def connect_signals(self):
         """连接信号槽"""
@@ -218,84 +198,55 @@ class ExcelFilterWindow(QMainWindow):
     
     def add_filter_row(self):
         """添加新的筛选条件"""
-        if len(self.filter_rows) >= 4:
+        if len(self.filters) >= 4:
             QMessageBox.warning(self, "提示", "最多支持4个筛选条件")
             return
         
-        from app.filter_row_widget import FilterRowWidget
         columns = self.tab_handler.get_current_columns()
-        new_filter = FilterRowWidget(columns, show_delete=True)
+        new_filter = FilterWidget(columns, show_delete=True)
         new_filter.deleted.connect(self.remove_filter_row)
 
-        if len(self.row1_filters) < 2:
-            self.row1_layout.addWidget(new_filter)
-            self.row1_filters.append(new_filter)
-        else:
-            self.row2_layout.addWidget(new_filter)
-            self.row2_filters.append(new_filter)
-        
-        self.filter_rows.append(new_filter)
-        self.update_filter_indices()
-        self.status_label.setText(f"已添加筛选条件，当前共 {len(self.filter_rows)} 个")
+        if len(self.filters) == 1:
+            new_filter.set_index(2)
+            self.filter_layout.addWidget(new_filter, 0, 1)
+        elif len(self.filters) == 2:
+            new_filter.set_index(3)
+            self.filter_layout.addWidget(new_filter, 1, 0)
+        elif len(self.filters) == 3:
+            new_filter.set_index(4)
+            self.filter_layout.addWidget(new_filter, 1, 1)
 
-    def remove_filter_row(self, filter_row):
+        self.filters.append(new_filter)
+        # self.update_filter_indices()
+        self.status_label.setText(f"已添加筛选条件，当前共 {len(self.filters)} 个")
+
+    def remove_filter_row(self, filter):
         """删除筛选条件"""
-        if len(self.filter_rows) <= 1:
+        if len(self.filters) <= 1:
             QMessageBox.warning(self, "提示", "至少保留一个筛选条件")
             return
         
-        if filter_row in self.row1_filters:
-            self.row1_layout.removeWidget(filter_row)
-            self.row1_filters.remove(filter_row)
-        elif filter_row in self.row2_filters:
-            self.row2_layout.removeWidget(filter_row)
-            self.row2_filters.remove(filter_row)
-        
-        self.filter_rows.remove(filter_row)
-        filter_row.deleteLater()
-        self.rearrange_filters()
-        self.update_filter_indices()
-        self.status_label.setText(f"已删除筛选条件，当前共 {len(self.filter_rows)} 个")
+        self.filter_layout.removeWidget(filter)
+        self.filters.remove(filter)
+        filter.deleteLater()
 
-    def rearrange_filters(self):
-        """重新整理筛选条件布局"""
-        all_filters = self.row1_filters + self.row2_filters
-        
-        for f in self.row1_filters:
-            self.row1_layout.removeWidget(f)
-        for f in self.row2_filters:
-            self.row2_layout.removeWidget(f)
-        
-        self.row1_filters.clear()
-        self.row2_filters.clear()
-        
-        for i, f in enumerate(all_filters):
-            if i < 2:
-                self.row1_layout.addWidget(f)
-                self.row1_filters.append(f)
-            else:
-                self.row2_layout.addWidget(f)
-                self.row2_filters.append(f)
+        # 删除过滤条件后根据现有的过滤条件进行重新排列
+        if len(self.filters) == 2:
+            self.filters[1].set_index(2)
+            self.filter_layout.addWidget(self.filters[1], 0, 1)
+        elif len(self.filters) == 3:
+            self.filters[1].set_index(2)
+            self.filters[2].set_index(3)
+            self.filter_layout.addWidget(self.filters[1], 0, 1)
+            self.filter_layout.addWidget(self.filters[2], 1, 0)
 
-    def update_filter_indices(self):
-        """更新筛选条件序号"""
-        all_filters = self.row1_filters + self.row2_filters
-        for i, f in enumerate(all_filters):
-            f.set_index(i + 1)
-
-    def get_all_filters(self):
-        """获取所有有效的筛选条件"""
-        filters = []
-        for row in self.filter_rows:
-            if row.is_valid():
-                filters.append(row.get_filter())
-        return filters
+        self.status_label.setText(f"已删除筛选条件，当前共 {len(self.filters)} 个")
 
     def update_all_filter_columns(self):
         """更新所有筛选条件的列下拉框"""
         columns = self.tab_handler.get_current_columns()
-        for row in self.filter_rows:
-            row.set_columns(columns)
+        for filters in self.filters:
+            filters.set_columns(columns)
     
     def on_progress(self, message: str):
         """进度更新"""
@@ -327,46 +278,20 @@ class ExcelFilterWindow(QMainWindow):
             return value
 
     def apply_style(self):
-        """应用样式表"""
-        self.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                border: 1px solid #ccc;
-                border-radius: 5px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-            }
-            QPushButton {
-                padding: 6px 12px;
-                background: #0078d4;
-                color: white;
-                border: none;
-                border-radius: 4px;
-            }
-            QPushButton:hover { background: #106ebe; }
-            QPushButton:disabled { background: #ccc; }
-            QTableView {
-                alternate-background-color: #f5f5f5;
-                selection-background-color: #0078d4;
-            }
-            QTabWidget::pane {
-                border: 1px solid #ccc;
-                border-radius: 4px;
-            }
-            QTabBar::tab {
-                padding: 8px 16px;
-                margin-right: 2px;
-            }
-            QTabBar::tab:selected {
-                background: #0078d4;
-                color: white;
-            }
-        """)
+        """从QSS文件加载样式"""
+        # 获取当前文件所在目录
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # 获取项目根目录
+        project_root = os.path.dirname(current_dir)
+        # 拼接 QSS 路径：/asset/style.qss
+        qss_path = os.path.join(project_root, "assets", "style.qss")
+
+        try:
+            with open(qss_path, "r", encoding="utf-8") as f:
+                qss = f.read()
+            self.setStyleSheet(qss)
+        except Exception as e:
+            print(f"QSS加载失败：{e}")
 
     def cleanup_worker(self):
         """清理工作线程"""

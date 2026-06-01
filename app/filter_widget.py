@@ -2,7 +2,7 @@ from PySide6.QtWidgets import QWidget, QHBoxLayout, QComboBox, QLineEdit, QPushB
 from PySide6.QtCore import Signal
 
 
-class FilterRowWidget(QWidget):
+class FilterWidget(QWidget):
     """单行筛选条件组件"""
     
     # 当点击删除按钮时发出信号

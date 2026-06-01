@@ -27,15 +27,11 @@ class DataProcessWorker(QThread):
                 self.progress.emit(f"发现 {len(sheet_names)} 个工作表")
                 
                 # 加载所有工作表
-                # import time
-                # start = time.perf_counter()
                 sheets_data = {}
                 for i, sheet_name in enumerate(sheet_names):
                     self.progress.emit(f"正在加载工作表 {i+1}/{len(sheet_names)}: {sheet_name}")
                     df = ExcelProcessor.load_sheet(file_path, sheet_name)
                     sheets_data[sheet_name] = df
-                # end = time.perf_counter()
-                # print(f"读取excel表格耗时：{end - start:.6f} 秒")
                 self.finished.emit(sheets_data)
             elif self.task_type == "export_all":
                 sheet_tabs = self.args[0]  # 字典 {sheet_name: SheetTabWidget}

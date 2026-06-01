@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QFileDialog
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QStandardPaths
 import os
 
 
@@ -14,11 +14,13 @@ class FileHandler(QObject):
         self.file_path = None
     
     def select_file(self):
+        # 跨平台获取桌面路径
+        desk_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DesktopLocation)
         """选择Excel文件"""
         file_path, _ = QFileDialog.getOpenFileName(
             self.parent,
             "请选择文件",
-            "",
+            desk_path,      # 打开路径设置为桌面
             "Excel文件(*.xlsx *.xls);;所有文件(*)"
         )
         if file_path:

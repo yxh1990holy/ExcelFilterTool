@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QApplication
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QObject, QStandardPaths
 import pandas as pd
 
 
@@ -9,6 +9,8 @@ class ExportHandler(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
+        # 跨平台获取桌面路径
+        self.desk_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DesktopLocation)
     
     def export_current(self):
         """导出当前工作表"""
@@ -24,7 +26,7 @@ class ExportHandler(QObject):
         output_path, _ = QFileDialog.getSaveFileName(
             self.parent,
             f"保存工作表 '{self.parent.current_sheet_name}'",
-            f"{self.parent.current_sheet_name}_处理后.xlsx",
+            f"{self.desk_path}/{self.parent.current_sheet_name}_处理后.xlsx",
             "Excel文件 (*.xlsx)"
         )
         
@@ -87,7 +89,7 @@ class ExportHandler(QObject):
         
         output_path, _ = QFileDialog.getSaveFileName(
             self.parent, "保存所有工作表",
-            "所有工作表处理后.xlsx", "Excel文件 (*.xlsx)"
+            f"{self.desk_path}/所有工作表处理后.xlsx", "Excel文件 (*.xlsx)"
         )
         
         if output_path:
