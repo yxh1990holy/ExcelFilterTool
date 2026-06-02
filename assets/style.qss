@@ -3,12 +3,12 @@ QLabel {
     font-size: 13px;
     color: #333;
 }
-QLabel#info_label {
+QLabel#info_label[status="normal"]{
     padding: 5px; 
     background-color: #f5f5f5; 
     border-radius: 3px;
 }
-QLabel#info_label_less {
+QLabel#info_label[status="less"] {
     padding: 5px; 
     background-color: #fff3cd; 
     border-radius: 3px;

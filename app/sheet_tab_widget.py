@@ -1,5 +1,4 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTableView
-from PySide6.QtCore import Qt
 from app.data_processor import ExcelProcessor
 from app.table_model import PandasModel
 import pandas as pd
@@ -27,6 +26,7 @@ class SheetTabWidget(QWidget):
         # 信息标签
         self.info_label = QLabel(f"总行数: {len(self.original_df)} | 当前行数: {len(self.current_df)}")
         self.info_label.setObjectName("info_label")
+        self.info_label.setProperty("status", "normal")
         layout.addWidget(self.info_label)
 
         # 表格视图
@@ -47,9 +47,15 @@ class SheetTabWidget(QWidget):
         self.info_label.setText(f"总行数: {original_rows} | 当前行数: {current_rows}")
 
         if current_rows < original_rows:
-            self.info_label.setStyleSheet("padding: 5px; background-color: #fff3cd; border-radius: 3px;")
+            # self.info_label.setStyleSheet("padding: 5px; background-color: #fff3cd; border-radius: 3px;")
+            self.info_label.setProperty("status", "less")
         else:
-            self.info_label.setStyleSheet("padding: 5px; background-color: #f5f5f5; border-radius: 3px;")
+            # self.info_label.setStyleSheet("padding: 5px; background-color: #f5f5f5; border-radius: 3px;")
+            self.info_label.setProperty("status", "normal")
+        # 必须刷新样式,不然样式更改不生效
+        self.info_label.style().unpolish(self.info_label)
+        self.info_label.style().polish(self.info_label)
+        self.info_label.update()
 
     def apply_filter(self, column: str, operator: str, value):
         """应用筛选到当前标签页"""
