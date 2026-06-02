@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo   Excel 筛选工具打包脚本
+echo   Excel 筛选工具 打包成文件夹
 echo ========================================
 echo.
 
@@ -14,7 +14,7 @@ if exist dist rmdir /s /q dist
 if exist *.spec del *.spec
 
 echo.
-echo 3. 开始打包...
+echo 3. 开始精简打包...
 pyinstaller -D -w --strip ^
     --exclude-module=tkinter ^
     --exclude-module=test ^
@@ -23,16 +23,10 @@ pyinstaller -D -w --strip ^
     --add-data "assets/*;assets/" ^
     --icon=assets/icons/ExcelTool.ico ^
     --name="ExcelTool"  ^
-    --hidden-import=openpyxl ^
-    --hidden-import=pandas ^
-    --hidden-import=PySide6.QtXml ^
-    --hidden-import=PySide6.QtCore ^
-    --hidden-import=PySide6.QtGui ^
-    --hidden-import=PySide6.QtWidgets ^
     run.py
 
 echo.
 echo 4. 打包完成！
-echo 输出文件位置: dist\ExcelFilterTool.exe
+echo 输出：dist\ExcelTool.exe
 echo.
 pause

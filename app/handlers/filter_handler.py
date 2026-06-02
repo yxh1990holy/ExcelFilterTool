@@ -56,8 +56,8 @@ class FilterHandler(QObject):
         if not current_tab:
             return
         
-        for row in self.parent.filters:
-            row.clear()
+        for filter in self.parent.filters:
+            filter.clear()
         
         current_tab.reset_filter()
         self.parent.status_label.setText("已重置所有筛选条件")

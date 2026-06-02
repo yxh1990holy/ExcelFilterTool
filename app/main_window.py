@@ -28,7 +28,7 @@ class ExcelFilterWindow(QMainWindow):
 
         self.setWindowTitle("Excel数据处理工具")
         self.setWindowIcon(QIcon(self.resource_path("assets/icons/ExcelTool.png")))
-        self.resize(800, 600)
+        self.resize(900, 600)
         self.center()
         
         # 数据状态
@@ -79,7 +79,7 @@ class ExcelFilterWindow(QMainWindow):
         # 文件选择区域
         file_layout = QHBoxLayout()
         self.file_label = QLabel("未选择文件")
-        self.file_label.setStyleSheet("padding: 8px; background: #f0f0f0;border-radius: 4px;")
+        self.file_label.setObjectName("file_label")
         self.select_btn = QPushButton("📂 选择Excel文件")
         self.select_btn.setFixedWidth(140)
         file_layout.addWidget(QLabel("当前文件："))
@@ -90,7 +90,7 @@ class ExcelFilterWindow(QMainWindow):
         # 筛选条件区域
         filter_group = QGroupBox("筛选条件（所有条件同时生效，AND 逻辑）")
         self.filter_layout = QGridLayout(filter_group)
-        # self.filter_layout.setContentsMargins(10, 15, 10, 10)
+        self.filter_layout.setContentsMargins(10, 15, 10, 10)
         self.filter_layout.setSpacing(8)
         
         # 按钮行

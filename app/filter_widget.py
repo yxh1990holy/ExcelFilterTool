@@ -101,5 +101,7 @@ class FilterWidget(QWidget):
         return bool(column and value and column != "请先加载数据")
     
     def clear(self):
-        """清空输入"""
+        """清空输入并恢复下拉选为默认值"""
+        self.column_combo.setCurrentIndex(0)
+        self.operator_combo.setCurrentIndex(0)
         self.value_input.clear()
